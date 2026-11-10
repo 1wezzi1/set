@@ -1,0 +1,21 @@
+# База данных SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Настройки IDE (VS Code, PyCharm)
+.vscode/
+.idea/
+
+# Тесты
+.pytest_cache/

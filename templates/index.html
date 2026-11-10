@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debt Tracker — Учёт долгов</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg: #F3F4F6;
+            --card: #FFFFFF;
+            --text: #1F2937;
+            --border: #E5E7EB;
+            --success: #10B981;
+            --danger: #EF4444;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 30px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .card h2 {
+            margin-top: 0;
+            font-size: 18px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+        button.danger {
+            background-color: var(--danger);
+        }
+        button.danger:hover {
+            background-color: #DC2626;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            background-color: #F9FAFB;
+            font-weight: 600;
+        }
+        .empty {
+            text-align: center;
+            color: #6B7280;
+            padding: 20px;
+        }
+        .badge {
+            background: #E0E7FF;
+            color: var(--primary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--success);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: none;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💸 Debt Tracker</h1>
+        
+        <div class="grid">
+            <!-- Добавление пользователя -->
+            <div class="card">
+                <h2>👥 Добавить пользователя</h2>
+                <input type="text" id="userName" placeholder="Имя (например, Алиса)">
+                <button onclick="addUser()">Добавить</button>
+            </div>
+
+            <!-- Добавление долга -->
+            <div class="card">
+                <h2>📝 Добавить долг</h2>
+                <select id="debtor"></select>
+                <select id="creditor"></select>
+                <input type="number" id="amount" placeholder="Сумма в рублях" min="1">
+                <button onclick="addDebt()">Добавить долг</button>
+            </div>
+        </div>
+
+        <!-- Управление взаимозачётом -->
+        <div class="card" style="margin-bottom: 20px;">
+            <h2>🔄 Взаимозачёт</h2>
+            <p style="color: #6B7280; font-size: 14px; margin-top: 0;">Нажмите кнопку, чтобы система нашла замкнутые циклы (А должен Б, Б должен В, В должен А) и автоматически вычеркнула их.</p>
+            <button class="danger" onclick="cancelCycles()">Отменить все циклы (Взаимозачёт)</button>
+        </div>
+
+        <div class="grid">
+            <!-- Текущие долги -->
+            <div class="card">
+                <h2>📋 Сырые долги (как ввели)</h2>
+                <table id="debtsTable">
+                    <thead>
+                        <tr>
+                            <th>Должник</th>
+                            <th>Кредитор</th>
+                            <th>Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- Реальные балансы после нетто-расчета -->
+            <div class="card" style="border: 2px solid var(--primary);">
+                <h2>✅ Реальные балансы (кому реально платить)</h2>
+                <table id="balancesTable">
+                    <thead>
+                        <tr>
+                            <th>Кто платит</th>
+                            <th>Кому</th>
+                            <th>Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Успешно!</div>
+
+    <script>
+        const API_URL = "";
+
+        // Загрузка данных
+        async function loadData() {
+            const usersRes = await fetch(`${API_URL}/users`);
+            const users = await usersRes.json();
+            
+            const debtsRes = await fetch(`${API_URL}/debts`);
+            const debts = await debtsRes.json();
+            
+            const balancesRes = await fetch(`${API_URL}/balances`);
+            const balances = await balancesRes.json();
+
+            renderUsers(users);
+            renderDebts(debts, users);
+            renderBalances(balances);
+        }
+
+        // Отрисовка выпадающих списков
+        function renderUsers(users) {
+            const debtorSelect = document.getElementById("debtor");
+            const creditorSelect = document.getElementById("creditor");
+            
+            const options = users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+            debtorSelect.innerHTML = options || '<option value="">Нет пользователей</option>';
+            creditorSelect.innerHTML = options || '<option value="">Нет пользователей</option>';
+        }
+
+        // Отрисовка сырых долгов
+        function renderDebts(debts, users) {
+            const tbody = document.querySelector("#debtsTable tbody");
+            if (debts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="empty">Долгов пока нет</td></tr>';
+                return;
+            }
+            const userMap = Object.fromEntries(users.map(u => [u.id, u.name]));
+            tbody.innerHTML = debts.map(d => `
+                <tr>
+                    <td>${userMap[d.from] || 'Неизвестно'}</td>
+                    <td>${userMap[d.to] || 'Неизвестно'}</td>
+                    <td><span class="badge">${d.amount}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Отрисовка реальных балансов
+        function renderBalances(balances) {
+            const tbody = document.querySelector("#balancesTable tbody");
+            if (balances.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="empty">Все долги закрыты! 🎉</td></tr>';
+                return;
+            }
+            tbody.innerHTML = balances.map(b => `
+                <tr>
+                    <td>${b.from}</td>
+                    <td>${b.to}</td>
+                    <td><span class="badge" style="background:#D1FAE5; color:#065F46;">${b.amount}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Действия
+        async function addUser() {
+            const name = document.getElementById("userName").value.trim();
+            if (!name) return alert("Введите имя");
+            
+            await fetch(`${API_URL}/users`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name})
+            });
+            document.getElementById("userName").value = "";
+            showToast("Пользователь добавлен!");
+            loadData();
+        }
+
+        async function addDebt() {
+            const debtor_id = document.getElementById("debtor").value;
+            const creditor_id = document.getElementById("creditor").value;
+            const amount_rub = parseFloat(document.getElementById("amount").value);
+
+            if (!debtor_id || !creditor_id) return alert("Выберите должника и кредитора");
+            if (debtor_id === creditor_id) return alert("Должник и кредитор не могут совпадать");
+            if (!amount_rub || amount_rub <= 0) return alert("Введите корректную сумму");
+
+            await fetch(`${API_URL}/debts`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({debtor_id, creditor_id, amount_rub})
+            });
+            document.getElementById("amount").value = "";
+            showToast("Долг добавлен!");
+            loadData();
+        }
+
+        async function cancelCycles() {
+            const res = await fetch(`${API_URL}/cycles/cancel`, { method: 'POST' });
+            const data = await res.json();
+            
+            if (data.cancelled_cycles.length > 0) {
+                showToast(`Отменено циклов: ${data.cancelled_cycles.length}`);
+            } else {
+                showToast("Циклов не найдено, все долги прямые");
+            }
+            loadData();
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById("toast");
+            toast.innerText = msg;
+            toast.style.display = "block";
+            setTimeout(() => { toast.style.display = "none"; }, 3000);
+        }
+
+        // Запуск при загрузке страницы
+        window.onload = loadData;
+    </script>
+</body>
+</html>
